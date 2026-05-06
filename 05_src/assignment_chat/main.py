@@ -12,7 +12,7 @@ from langgraph.prebuilt.tool_node import ToolNode, tools_condition
 from langchain_core.tools import tool
 
 from assignment_chat.prompts import get_system_prompt
-# from assignment_chat.tools_arxiv import make_arxiv_tool
+from assignment_chat.tools_api import build_abstracts_from_query
 
 load_dotenv(".env")
 load_dotenv(".secrets")
@@ -54,52 +54,8 @@ def get_current_time() -> str:
     from datetime import datetime
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-@tool
-def search_papers(query: str) -> str:
-    """
-    Search arXiv and return raw paper titles and abstracts.
-    """
-    base_url = "http://export.arxiv.org/api/query"
-    
-    headers = {"User-Agent": "vision-research-bot/1.0"}
-    
-    params = {
-        "search_query": f"all:{query}",
-        "start": 0,
-        "max_results": 3
-    }
 
-    for attempt in range(3):
-        response = requests.get(base_url, params=params, headers=headers)
-
-        if response.status_code == 200:
-            break
-        elif response.status_code == 429:
-            time.sleep(2 ** attempt)
-        else:
-            return f"API error {response.status_code}"
-    else:
-        return "Failed after retries"
-
-    root = ET.fromstring(response.content)
-    ns = {"atom": "http://www.w3.org/2005/Atom"}
-
-    output = []
-
-    for entry in root.findall("atom:entry", ns):
-        title = entry.find("atom:title", ns).text.strip()
-        summary = entry.find("atom:summary", ns).text.strip()
-
-        title = " ".join(title.split())
-        summary = " ".join(summary.split())
-
-        output.append(
-            f"Title: {title}\nSummary: {summary[:300]}...\n"
-        )
-
-    return "\n\n".join(output)
-
-tools = [get_current_time, search_papers]
+tools = [get_current_time, build_abstracts_from_query]
 
 
 def call_model(state: MessagesState):
