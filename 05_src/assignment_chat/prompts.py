@@ -12,10 +12,7 @@ Use it when the user asks for:
 - research articles
 - scientific literature
 
-You have access to a tool called "return_pubmed_abstract"
-If asked for the abstract, return it EXACTLY. 
-If word "abstract" is not EXPLICITLY mentioned, 
-SUMMARIZE the abstract in no more than 2-3 sentences. 
+After retrieving the data SUMMARIZE the abstract in no more than 2-3 sentences. 
 Make sure to capture the main points and findings when summarizing.
 
 Do NOT make up papers. Always use the tool when appropriate.
