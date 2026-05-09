@@ -12,7 +12,8 @@ from langgraph.prebuilt.tool_node import ToolNode, tools_condition
 from langchain_core.tools import tool
 
 from assignment_chat.prompts import get_system_prompt
-from assignment_chat.tools_api import search_pubmed_live
+from assignment_chat.tools_api import search_pubmed
+from assignment_chat.tools_chroma import semantic_search
 
 load_dotenv(".env")
 load_dotenv(".secrets")
@@ -55,7 +56,7 @@ def get_current_time() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-tools = [get_current_time, search_pubmed_live]
+tools = [get_current_time, search_pubmed, semantic_search]
 
 
 def call_model(state: MessagesState):

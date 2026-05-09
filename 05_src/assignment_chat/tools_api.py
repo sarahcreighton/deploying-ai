@@ -7,8 +7,13 @@ from langchain_core.tools import tool
 # -----------------------------
 # TOOL DEFINITIONS
 # -----------------------------
+# NOTE: search_pubmed() would be better as a structured tool
+# Significant prompting currently required to force chatbot 
+# to return as requested by _format_papers_for_chat(). Works 
+# for now, but fragile. Refer to notes.ipynb for a draft
+
 @tool
-def search_pubmed_live(query: str = "vision AND psychophysics", max_results: int = 5) -> str:
+def search_pubmed(query: str = "vision AND psychophysics", max_results: int = 5) -> str:
     """
     Use this tool when the user asks you to search for RECENT papers on a 
     topic that may not be contained in the local chroma database.
@@ -20,9 +25,9 @@ def search_pubmed_live(query: str = "vision AND psychophysics", max_results: int
     """
     pmids = _search_pubmed_ids(query, max_results) # get IDs
     time.sleep(0.5)  # be polite to API
-    metadata = _fetch_pubmed_data(pmids, include_abstract=True) # get metadata
-    citations = [_format_pubmed_citation(p) for p in metadata] # format citations
-    return "\n\n".join(citations)
+    papers = _fetch_pubmed_data(pmids, include_abstract=True) # get metadata
+    response = _format_papers_for_chat(papers, query_context=query)
+    return response
 
 
 # -----------------------------
@@ -104,6 +109,7 @@ def _parse_pubmed_xml(xml_content: str, include_abstract: bool = True) -> List[D
             
             # PMID
             pmid = article.findtext(".//PMID", "")
+            pmid_link = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}" if pmid else ""
 
             # Abstract (Optional)
             abstract_text = ""
@@ -125,6 +131,7 @@ def _parse_pubmed_xml(xml_content: str, include_abstract: bool = True) -> List[D
                 "year": year,
                 "journal": journal,
                 "abstract": abstract_text,
+                "citation": f"{authors_str} ({year}). [{title}]({pmid_link}). *{journal}*.",
                 "source": "pubmed"
             })
             
@@ -171,7 +178,42 @@ def _format_pubmed_citation(paper: Dict) -> str:
     year = paper.get('year', 'n.d.')
     title = paper.get('title', 'Unknown Title')
     journal = paper.get('journal', 'Unknown Journal')
-    abstract = paper.get('abstract', '')
     pmid = paper.get('pmid', '')
-    pmid_link = f" [PMID: {pmid}](https://pubmed.ncbi.nlm.nih.gov/{pmid}/)" if pmid else ""
-    return f"{authors} ({year}). {title}. *{journal}*. {pmid_link}\n\n{abstract}"
+    pmid_link = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else ""
+    return f"{authors} ({year}). [{title}]({pmid_link}) *{journal}*. PMID: {pmid}"
+
+def _format_papers_for_chat(papers: list, query_context: str = "") -> str:
+    """
+    Converts a list of paper dictionaries into a human-readable, chat-friendly string
+    Args:
+        papers (list): List of dictionaries containing paper details.
+        query_context (str): Optional context (e.g., the search query) to include in header
+    Returns:
+        str: Formatted markdown string.
+    """
+    if not papers:
+        return "No papers found."
+    
+    formatted_blocks = []
+
+    for i, paper in enumerate(papers, 1):
+        abstract = paper.get("abstract", "")
+        if len(abstract) > 400: # truncate if long
+            abstract_display = abstract[:400] + "..."
+        else:
+            abstract_display = abstract
+
+        # clean block for each paper
+        block = (
+            f"**{i}. {_format_pubmed_citation(paper)}**\n"
+            f"*Abstract*: {abstract_display}"
+        )
+        formatted_blocks.append(block)
+
+    # create the header
+    if query_context:
+        header = f"Here are the top {len(papers)} papers for your query: *'{query_context}'*"
+    else:
+        header - f"Here are the details for {len(papers)} papers:"
+        
+    return f"{header}\n\n" + "\n---\n\n".join(formatted_blocks)
